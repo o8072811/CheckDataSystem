@@ -1,6 +1,7 @@
 ﻿using System;
-using System.IO;
+using System.Data;
 using System.Data.SQLite; // 引用剛剛裝好的套件
+using System.IO;
 
 namespace CheckDataSystem
 {
@@ -9,20 +10,30 @@ namespace CheckDataSystem
         // ★★★ 設定資料庫路徑 ★★★
         // 如果要共用，請改成 @"Data Source=\\Server\Share\data.db;Version=3;";
         //private string _connectionString = $"Data Source={Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data.db")};Version=3;";
-        private string _connectionString = @"Data Source=D:\資料\共用\Test\data.db;Version=3;";
+        private string _connectionString = "";
         public event Action<string> OnLogMessage;
 
         /// <summary>
         /// 初始化：如果資料庫檔案不存在，自動建立並新增 Table
         /// </summary>
-        public void Initialize()
+        public void Initialize(string folderPath)
         {
             try
             {
+                // 組合出完整的檔案路徑 (例如: Z:\Share\data.db)
+                string dbPath = Path.Combine(folderPath, "data.db");
+
+                // 設定連線字串 (加上引號防止路徑有空白報錯)
+                _connectionString = $"Data Source=\"{dbPath}\";Version=3;";
+
+                Log($"資料庫路徑設定為: {dbPath}");
+                
+                System.Windows.Forms.MessageBox.Show("資料庫路徑:\n" + dbPath);
                 // 建立資料庫檔案 (如果不存在)
-                if (!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data.db")))
+                if (!File.Exists(dbPath))
                 {
-                    SQLiteConnection.CreateFile("data.db");
+                    if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
+                    SQLiteConnection.CreateFile(dbPath);
                     Log("建立新的資料庫檔案 data.db");
                 }
 
@@ -110,8 +121,9 @@ namespace CheckDataSystem
                             cmd.ExecuteNonQuery();
                         }
                         Log($"比對成功，已從資料庫刪除: {barcode}");
+                       
                     }
-                    else
+                    else 
                     {
                         Log($"查無資料: {barcode}");
                     }
@@ -124,7 +136,20 @@ namespace CheckDataSystem
 
             return result;
         }
-
+        public DataTable GetAllData()
+        {
+            DataTable dt = new DataTable();
+            using (var conn = new SQLiteConnection(_connectionString))
+            {
+                conn.Open();
+                string sql = "SELECT Barcode AS '條碼', Status AS '狀態' FROM Products";
+                using (var adapter = new SQLiteDataAdapter(sql, conn))
+                {
+                    adapter.Fill(dt);
+                }
+            }
+            return dt;
+        }
         // 取得目前剩餘筆數 (方便顯示)
         public int GetCount()
         {
@@ -139,7 +164,10 @@ namespace CheckDataSystem
                     }
                 }
             }
-            catch { return 0; }
+            catch 
+            { 
+                return 0; 
+            }
         }
 
         private void Log(string msg) => OnLogMessage?.Invoke(msg);
