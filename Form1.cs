@@ -1,82 +1,87 @@
-using System;
+ï»¿using System;
 using System.Drawing;
 using System.Windows.Forms;
 
 namespace CheckDataSystem
 {
-    public partial class Form1 : Form
+        public partial class Form1 : Form
     {
         private CoreService _service;
-        private string _dbFolderPath = ""; // §Ö¨ú¥Ø«eªº¸ô®|
+        private NetworkService _network; // æ–°å¢ç¶²è·¯æœå‹™
+        private string _dbFolderPath = ""; // è¨˜éŒ„ç›®å‰è³‡æ–™å¤¾è·¯å¾‘
 
         public Form1()
         {
             InitializeComponent();
             _service = new CoreService();
+            _network = new NetworkService(); // åˆå§‹åŒ–
 
-            // ­q¾\ Service ªº Log ¨Æ¥ó¡AÅã¥Ü¨ì¤¶­±¨Ã¼gÀÉ
+            // è¨‚é–± Service çš„ Log äº‹ä»¶ï¼Œé¡¯ç¤ºåˆ°ä»‹é¢ä¸¦å¯«æª”
             _service.OnLogMessage += HandleLogMessage;
+            _network.OnLog += HandleLogMessage; // è¨‚é–±ç¶²è·¯ Log
+            _network.OnMessageReceived += HandleNetworkMessage; // è¨‚é–±æ”¶åˆ°è¨Šæ¯äº‹ä»¶
 
-            // ¨Æ¥ó¸j©w
+            // äº‹ä»¶ç¶å®š
             this.Load += Form1_Load;
             btnCheck.Click += BtnCheck_Click;
             btnAdd.Click += BtnAdd_Click;
             btnRefresh.Click += (s, e) => RefreshGrid();
+            btnCancel.Click += BtnCancel_Click;
 
-            // ¤ä´© Enter Áä
+            // æ”¯æ´ Enter éµ
             txtInputCheck.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) BtnCheck_Click(s, e); };
             txtInputAdd.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) BtnAdd_Click(s, e); };
 
-            // ©w®É¨ê·s
+            // å®šæ™‚æ›´æ–°
             tmrAutoRefresh.Interval = 2000;
             tmrAutoRefresh.Tick += tmrAutoRefresh_Tick;
         }
-
+        
         private void Form1_Load(object sender, EventArgs e)
         {
             InitializeSystemFlow();
         }
 
         /// <summary>
-        /// ¨t²Îªì©l¤Æ¬yµ{¡G¿ï¸ô®| -> ³s½u -> µn¤J -> ³]©w¤¶­±
+        /// ç³»çµ±åˆå§‹åŒ–æµç¨‹ï¼šè·¯å¾‘ -> é€£ç·š -> ç™»å…¥ -> è¨­å®šä»‹é¢
         /// </summary>
         private void InitializeSystemFlow()
         {
-            // 1. ¨ú±o©Î³]©w¸ô®|
+            // 1. å–å¾—æˆ–è¨­å®šè·¯å¾‘
             _dbFolderPath = Properties.Settings.Default.DbFolderPath;
             if (string.IsNullOrEmpty(_dbFolderPath) || !System.IO.Directory.Exists(_dbFolderPath))
             {
                 if (!SelectAndSaveDbPath())
                 {
-                    MessageBox.Show("¥¼¿ï¾Ü¸ô®|¡Aµ{¦¡±NÃö³¬¡C");
+                    MessageBox.Show("æœªè¨­å®šè·¯å¾‘ï¼Œç¨‹å¼å³å°‡é—œé–‰ã€‚");
                     this.Close();
                     return;
                 }
             }
 
-            // 2. ªì©l¤Æ Service
+            // 2. åˆå§‹åŒ– Service
             try
             {
                 _service.Initialize(_dbFolderPath);
             }
             catch
             {
-                MessageBox.Show("¸ê®Æ®w³s½u¥¢±Ñ¡A½ĞÀË¬d¸ô®|Åv­­¡C");
-                Properties.Settings.Default.DbFolderPath = ""; // ²MªÅ¿ù»~¸ô®|
+                MessageBox.Show("è³‡æ–™åº«é€£ç·šå¤±æ•—ï¼Œè«‹æª¢æŸ¥è·¯å¾‘æ¬Šé™ã€‚");
+                Properties.Settings.Default.DbFolderPath = ""; // æ¸…é™¤éŒ¯èª¤è·¯å¾‘
                 Properties.Settings.Default.Save();
                 this.Close();
                 return;
             }
 
-            // 3. µn¤J¿ï¨­¥÷
-            Hide(); // ÁôÂÃ¥Dµøµ¡
+            // 3. ç™»å…¥å°è©±æ¡†
+            Hide(); // éš±è—ä¸»è¦–çª—
             using (LoginForm login = new LoginForm())
             {
                 if (login.ShowDialog() == DialogResult.OK)
                 {
                     ConfigureUiByRole(login.SelectedRole);
-                    Show(); // Åã¥Ü¥Dµøµ¡
-                    HandleLogMessage("¨t²Î¤w±Ò°Ê¡A·Ç³Æ´Nºü¡C");
+                    Show(); // é¡¯ç¤ºä¸»è¦–çª—
+                    HandleLogMessage("ç³»çµ±å·²å•Ÿå‹•ï¼Œæº–å‚™å°±ç·’ã€‚");
                     RefreshGrid();
                 }
                 else
@@ -87,13 +92,13 @@ namespace CheckDataSystem
         }
 
         /// <summary>
-        /// ¿ï¾Ü¸ê®Æ®w¸ê®Æ§¨
+        /// é¸æ“‡è³‡æ–™åº«è³‡æ–™å¤¾
         /// </summary>
         private bool SelectAndSaveDbPath()
         {
             using (var dialog = new FolderBrowserDialog())
             {
-                dialog.Description = "½Ğ¿ï¾Ü¸ê®Æ®w (data.db) ¦s©ñªº¦@¥Î¸ê®Æ§¨";
+                dialog.Description = "è«‹é¸æ“‡è³‡æ–™åº« (data.db) å­˜æ”¾çš„å…±ç”¨è³‡æ–™å¤¾";
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
                     _dbFolderPath = dialog.SelectedPath;
@@ -106,23 +111,33 @@ namespace CheckDataSystem
         }
 
         /// <summary>
-        /// ®Ú¾Ú¨­¤À½Õ¾ã¤¶­±
+        /// æ ¹æ“šèº«åˆ†èª¿æ•´ä»‹é¢
         /// </summary>
         private void ConfigureUiByRole(string role)
         {
-            if (role == "Up") // ÀË®Ö­û (²¾°£¿ı¤J¥\¯à)
+            if (role == "Up") // ä¸Šæ¸¸ç«¯ (éš±è—æŸ¥è©¢åŠŸèƒ½)
             {
                 tabControl1.TabPages.Remove(tabCheck);
-                this.Text += " - [¨­¤À: ¤W´å/ÀË®Ö]";
+                this.Text += " - [è§’è‰²: ä¸Šæ¸¸/éŒ„å…¥]";
+                
+                // ä¸Šæ¸¸ç«¯ï¼šå˜—è©¦é€£ç·šåˆ°ä¼ºæœå™¨ (é€™è£¡ç¯„ä¾‹é è¨­é€£ç·šæœ¬æ©Ÿï¼Œå¯¦éš›å¯è·³å‡ºè¼¸å…¥æ¡†)
+                string serverIp = Microsoft.VisualBasic.Interaction.InputBox("è«‹è¼¸å…¥ä¸‹æ¸¸(ä¼ºæœå™¨) IP ä½å€ï¼š", "é€£ç·šè¨­å®š", "127.0.0.1");
+                if (!string.IsNullOrEmpty(serverIp))
+                {
+                    _network.ConnectToServer(serverIp, 5000);
+                }
             }
-            else if (role == "Down") // ¿ı¤J­û (²¾°£ÀË®Ö¥\¯à)
+            else if (role == "Down") // ä¸‹æ¸¸ç«¯ (éš±è—éŒ„å…¥åŠŸèƒ½)
             {
                 tabControl1.TabPages.Remove(tabAdd);
-                this.Text += " - [¨­¤À: ¤U´å/¿ı¤J]";
+                this.Text += " - [è§’è‰²: ä¸‹æ¸¸/æŸ¥è©¢]";
+                
+                // ä¸‹æ¸¸ç«¯ï¼šå•Ÿå‹•ä¼ºæœå™¨
+                _network.StartServer(5000);
             }
         }
 
-        // [ÀË®Ö°Ï]
+        // [æŸ¥è©¢ç«¯]
         private void BtnCheck_Click(object sender, EventArgs e)
         {
             string input = txtInputCheck.Text.Trim();
@@ -137,7 +152,7 @@ namespace CheckDataSystem
             }
             else
             {
-                lblResult.Text = "¬dµL¸ê®Æ";
+                lblResult.Text = "æŸ¥ç„¡è³‡æ–™";
                 lblResult.ForeColor = Color.Gray;
             }
 
@@ -146,29 +161,28 @@ namespace CheckDataSystem
             RefreshGrid();
         }
 
-        // [¿ı¤J°Ï]
+        // [éŒ„å…¥ç«¯]
         private void BtnAdd_Click(object sender, EventArgs e)
         {
             string input = txtInputAdd.Text.Trim();
             //if (string.IsNullOrEmpty(input)) return;
 
-            // ­­¨î³Ì¤jµ§¼Æ¡A¨¾¤îÀİ¥Î (¥i¿ï)
+            // é™åˆ¶æœ€å¤§æ•¸é‡ï¼Œé¿å…æ¿«ç”¨ (ç¯„ä¾‹)
             int total = _service.GetCount();
             if (total >= 100)
             {
-                MessageBox.Show("®w¦s¹L¦h¡A½Ğ¥ı®ø¤Æ¸ê®Æ¡C");
+                MessageBox.Show("åº«å­˜éå¤šï¼Œè«‹å…ˆæ¸…é™¤è³‡æ–™ã€‚");
                 return;
             }
             
-            //¥ı°µ¶Ã¼Æ10µ§·ídata¥Î
+            // æ¨¡æ“¬æ‰¹æ¬¡éŒ„å…¥10ç­†data
+            Random rnd = new Random();
             for (int i = 0; i < 10; i++)
             {
-
-                Random rnd = new Random();
                 string code = "A" + rnd.Next(1000, 9999);
                 string status = rnd.Next(100) < 80 ? "OK" : "NG";
 
-                _service.AddData(code, status); // ¼g¤J¸ê®Æ®w
+                _service.AddData(code, status); // å¯«å…¥è³‡æ–™åº«
 
             }
 
@@ -178,23 +192,58 @@ namespace CheckDataSystem
             RefreshGrid();
         }
 
+        // è™•ç†æ”¶åˆ°çš„ç¶²è·¯è¨Šæ¯ (é€šå¸¸åœ¨ä¸‹æ¸¸ç«¯è§¸ç™¼)
+        private void HandleNetworkMessage(string msg)
+        {
+            // å› ç‚ºæ˜¯å¾ç¶²è·¯åŸ·è¡Œç·’å›ä¾†ï¼Œéœ€ Invoke åˆ° UI åŸ·è¡Œç·’
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() => HandleNetworkMessage(msg)));
+                return;
+            }
+
+            // è§£æè¨Šæ¯
+            var parts = msg.Split('|');
+            if (parts.Length == 3 && parts[0] == "ADD")
+            {
+                string code = parts[1];
+                string status = parts[2];
+
+                // å¯«å…¥æœ¬åœ°è³‡æ–™åº«
+                _service.AddData(code, status);
+                
+                // é †ä¾¿æ›´æ–°ä»‹é¢
+                RefreshGrid();
+            }
+        }
+
+        private void BtnCancel_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("ç¢ºå®šè¦æ¸…ç©ºæ‰€æœ‰è³‡æ–™å—ï¼Ÿæ­¤å‹•ä½œç„¡æ³•å¾©åŸã€‚", "è­¦å‘Š", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            {
+                _service.ClearAllData();
+                UpdateCount();
+                RefreshGrid();
+            }
+        }
+
         private void RefreshGrid()
         {
-            // ¥u¦³¦b¡uÁ`Äı¡v¤À­¶®É¤~§ó·s Grid¡A¸`¬Ù®Ä¯à
+            // åªæœ‰åœ¨ã€Œè³‡æ–™åº«ç¸½è¦½ã€åˆ†é æ™‚æ‰æ›´æ–° Gridï¼Œç¯€çœæ•ˆèƒ½
             //if (tabControl1.SelectedTab == tabView)
             //{
                 var dt = _service.GetAllData();
                 dgvData.DataSource = dt;
 
-                // Åª¨ú³Ì·sªº Log ÀÉ¤º®eÅã¥Ü
+                // è®€å–æœ€æ–° Log æª”å…§å®¹
                 string fileLogs = LogService.ReadTodayLog(_dbFolderPath);
-                // 1. §PÂ_¨Ï¥ÎªÌ¬O§_¥¿¦b¬İÂÂ¸ê®Æ (´å¼Ğ¬O§_¦b³Ì«á­±)
+                // 1. åˆ¤æ–·ä½¿ç”¨è€…æ˜¯å¦åœ¨æœ€åº•éƒ¨ (æ²è»¸æ˜¯å¦åœ¨æœ€å¾Œé¢)
                 bool userIsAtBottom = rtbLog.SelectionStart == rtbLog.Text.Length;
 
-                // 2. §ó·s¤º®e
+                // 2. æ›´æ–°å…§å®¹
                 rtbLog.Text = fileLogs;
 
-                // 3. ¥u¦³­ì¥»´N¦b³Ì¤U­±®É¡A¤~¦Û°Ê±²°Ê
+                // 3. å¦‚æœåŸæœ¬å°±åœ¨æœ€ä¸‹æ–¹æ™‚ï¼Œæ‰è‡ªå‹•æ²å‹•
                 if (userIsAtBottom)
                 {
                     rtbLog.SelectionStart = rtbLog.Text.Length;
@@ -207,27 +256,27 @@ namespace CheckDataSystem
         private void UpdateCount()
         {
             int count = _service.GetCount();
-            lblTotalCount.Text = $"¥Ø«e®w¦s: {count} µ§";
-            // ¤]¥i¥H§ó·sµøµ¡¼ĞÃD
-            // this.Text = $"ÀË®Ö¨t²Î - ®w¦s: {count}";
+            lblTotalCount.Text = $"ç›®å‰åº«å­˜: {count} ç­†";
+            // ä¹Ÿå¯ä»¥æ›´æ–°è¦–çª—æ¨™é¡Œ
+            // this.Text = $"æª¢æ ¸ç³»çµ± - åº«å­˜: {count}";
         }
 
-        // ²Î¤@³B²z Log (¨Ó¦Û Service ©Î Form)
+        // çµ±ä¸€è™•ç† Log (ä¾†è‡ª Service æˆ– Form)
         private void HandleLogMessage(string message)
         {
-            // 1. ¼g¤JÀÉ®×
+            // 1. å¯«å…¥æª”æ¡ˆ
             LogService.WriteToFile(_dbFolderPath, message);
 
-            // 2. §ó·s UI (¦]¬°¦³ Timer ·|¦Û°ÊÅª¨úÀÉ®×§ó·s¡A³o¸Ì¨ä¹ê¥i¥H¤£¥Î§Y®É Append¡A
-            //    ¦ı¬°¤F¤ÏÀ³³t«×¡AÁÙ¬O¥i¥H«O¯d)
+            // 2. æ›´æ–° UI (å› ç‚ºæœ‰ Timer æœƒè‡ªå‹•è®€å–æª”æ¡ˆæ›´æ–°ï¼Œé€™è£¡å¯ä»¥é¸æ“‡ç›´æ¥ Appendï¼Œ
+            //    ç‚ºäº†é¿å…è¡çªï¼Œé‚„æ˜¯å¯ä»¥ä¿ç•™)
             if (this.InvokeRequired)
             {
                 this.Invoke(new Action(() => HandleLogMessage(message)));
                 return;
             }
 
-            // Â²³æ Append ¨ì UI¡AÅı¨Ï¥ÎªÌª¾¹D­è¤~µo¥Í¤°»ò¨Æ
-            // §¹¾ã¤º®e·|¥Ñ Timer ±qÀÉ®×Åª¦^¨ÓÂĞ»\
+            // ç°¡å–® Append åˆ° UIï¼Œè®“ä½¿ç”¨è€…ç¬¬ä¸€æ™‚é–“çœ‹åˆ°
+            // å®Œæ•´å…§å®¹æœƒç”± Timer å¾æª”æ¡ˆè®€å›è¦†è“‹
             string time = DateTime.Now.ToString("HH:mm:ss");
             // rtbLog.AppendText($"[{time}] {message}\r\n"); 
         }
@@ -236,17 +285,17 @@ namespace CheckDataSystem
         {
             if (SelectAndSaveDbPath())
             {
-                MessageBox.Show($"¸ô®|¤wÅÜ§ó¬°¡G\n{_dbFolderPath}\n½Ğ­«·s±Ò°Êµ{¦¡¥H®M¥Î¡C");
+                MessageBox.Show($"è·¯å¾‘å·²è®Šæ›´ç‚ºï¼š\n{_dbFolderPath}\nè«‹é‡æ–°å•Ÿå‹•ç¨‹å¼ä»¥å¥—ç”¨ã€‚");
             }
         }
 
         private void tmrAutoRefresh_Tick(object sender, EventArgs e)
         {
-            // ©w®É¨ê·s Grid ©M Log µe­±
+            // å®šæ™‚æ›´æ–° Grid èˆ‡ Log ç•«é¢
             RefreshGrid();
         }
 
-        // ³o¨Ç¦Û°Ê¥Í¦¨ªºªÅ¨Æ¥ó¦pªG¨S¥Î¥i¥H§R°£
+        // é€™äº›è‡ªå‹•ç”¢ç”Ÿçš„ç©ºå‡½å¼å¦‚æœæ²’ç”¨å¯ä»¥åˆªé™¤
         private void tabView_Click(object sender, EventArgs e) { }
         private void dgvData_CellContentClick(object sender, DataGridViewCellEventArgs e) { }
         private void btnRefresh_Click(object sender, EventArgs e) { }

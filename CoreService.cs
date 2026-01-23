@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Data;
 using System.Data.SQLite;
 using System.IO;
@@ -165,6 +165,29 @@ namespace CheckDataSystem
             catch
             {
                 return 0;
+            }
+        }
+
+        /// <summary>
+        /// 清空所有資料
+        /// </summary>
+        public void ClearAllData()
+        {
+            try
+            {
+                using (var conn = new SQLiteConnection(_connectionString))
+                {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand("DELETE FROM Products", conn))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                Log("已手動清空所有資料");
+            }
+            catch (Exception ex)
+            {
+                Log($"清空失敗: {ex.Message}");
             }
         }
 
